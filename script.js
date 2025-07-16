@@ -17,6 +17,8 @@ const tasks = [
     {name: 'Zakupy', location: 'Centrum miasta', duration: 2, energyCost: 10, moodEffect: 5, focusEffect: -5},
     {name: 'Praca w ogrodzie', location: 'Wieś', duration: 3, energyCost: 15, moodEffect: 10, focusEffect: -10},
     {name: 'Łowienie ryb', location: 'Port', duration: 4, energyCost: 20, moodEffect: 15, focusEffect: 5},
+    // Zadanie w bibliotece, aby przy okazji umożliwić uruchomienie minigry
+    {name: 'Wypożycz książkę', location: 'Biblioteka', duration: 1, energyCost: 5, moodEffect: 5, focusEffect: 5},
 ];
 
 // ----------------- Zadanie wieloetapowe -----------------
@@ -41,6 +43,92 @@ const distractions = [
     {desc: 'SMS od znajomego', energy: 0, focus: -5, extraHour: 1},
     {desc: 'Scrollowanie telefonu', energy: -5, focus: -10, extraHour: 0},
 ];
+
+// ----------------- Minigra Memory -----------------
+// Wzór kart używany do każdej rozgrywki
+const baseCards = ['🍏','🍌','🍏','🍌'];
+// Tablica z aktualnym ułożeniem kart
+let cardValues = [];
+// Aktualne odkryte karty
+let firstCard = null;
+let secondCard = null;
+let matchedPairs = 0;
+
+// Funkcja tasująca tablicę kart
+function shuffleCards() {
+    cardValues.sort(() => Math.random() - 0.5);
+}
+
+// Rozpoczęcie minigry - wywoływane przy przycisku "Zagraj w memory"
+function startMemoryGame() {
+    // Zresetuj stan i potasuj karty
+    cardValues = [...baseCards];
+    shuffleCards();
+    firstCard = null;
+    secondCard = null;
+    matchedPairs = 0;
+
+    const game = document.getElementById('memoryGame');
+    const msg = document.getElementById('gameMessage');
+    msg.innerText = '';
+    document.getElementById('memoryAgain').style.display = 'none';
+
+    // Przywróć wygląd wszystkich kart
+    document.querySelectorAll('#memoryGame .card').forEach((btn, idx) => {
+        btn.innerText = '?';
+        btn.disabled = false;
+        btn.dataset.index = idx;
+    });
+
+    game.style.display = 'block';
+}
+
+// Obsługa kliknięcia karty
+document.addEventListener('click', function(e) {
+    if (!e.target.classList.contains('card')) return;
+    const index = parseInt(e.target.dataset.index);
+
+    // Jeśli już dwie karty są odkryte, ignoruj kliknięcie
+    if (secondCard !== null || e.target.disabled) return;
+
+    // Odkrycie karty
+    e.target.innerText = cardValues[index];
+    e.target.disabled = true;
+
+    if (firstCard === null) {
+        firstCard = index;
+        return;
+    }
+
+    // Ustaw drugą kartę i sprawdź parę
+    secondCard = index;
+
+    if (cardValues[firstCard] === cardValues[secondCard]) {
+        // Trafiona para - pozostaw karty odkryte
+        firstCard = null;
+        secondCard = null;
+        matchedPairs++;
+
+        if (matchedPairs === 2) {
+            // Wszystkie pary znalezione
+            document.getElementById('gameMessage').innerText = 'Ukończono minigrę! +10 Fokus';
+            playerState.focus += 10; // nagroda za koncentrację
+            updateStatsDisplay();
+            document.getElementById('memoryAgain').style.display = 'block';
+        }
+    } else {
+        // Nietrafiona para - zakryj po sekundzie
+        setTimeout(() => {
+            const buttons = document.querySelectorAll('#memoryGame .card');
+            buttons[firstCard].innerText = '?';
+            buttons[firstCard].disabled = false;
+            buttons[secondCard].innerText = '?';
+            buttons[secondCard].disabled = false;
+            firstCard = null;
+            secondCard = null;
+        }, 1000);
+    }
+});
 
 // Aktualizacja widoku zadania wieloetapowego
 function updateQuestDisplay() {
@@ -101,24 +189,34 @@ function updateTaskList() {
     const locationTasks = tasks.filter(t => t.location === currentLocation);
     if (locationTasks.length === 0) {
         content.innerText = 'Brak zadań w tej lokacji.';
-        return;
+    } else {
+        const list = document.createElement('ul');
+        locationTasks.forEach((t, idx) => {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.innerText = t.name;
+            btn.onclick = () => doTask(tasks.indexOf(t));
+            li.appendChild(btn);
+            list.appendChild(li);
+        });
+        content.innerHTML = '';
+        content.appendChild(list);
     }
-    const list = document.createElement('ul');
-    locationTasks.forEach((t, idx) => {
-        const li = document.createElement('li');
-        const btn = document.createElement('button');
-        btn.innerText = t.name;
-        btn.onclick = () => doTask(tasks.indexOf(t));
-        li.appendChild(btn);
-        list.appendChild(li);
-    });
-    content.innerHTML = '';
-    content.appendChild(list);
+
+    // Wyświetl przycisk minigry tylko w bibliotece
+    const memBtn = document.getElementById('memoryBtn');
+    if (currentLocation === 'Biblioteka') {
+        memBtn.style.display = 'inline-block';
+    } else {
+        memBtn.style.display = 'none';
+    }
 }
 
 function changeLocation(loc) {
     currentLocation = loc;
     updateTaskList();
+    // Ukryj minigrę przy zmianie lokacji
+    document.getElementById('memoryGame').style.display = 'none';
 }
 
 function showNotification(msg) {

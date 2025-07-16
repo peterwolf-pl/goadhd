@@ -13,6 +13,7 @@
             <a href="#" onclick="changeLocation('Centrum miasta')">Centrum miasta</a>
             <a href="#" onclick="changeLocation('Wieś')">Wieś</a>
             <a href="#" onclick="changeLocation('Port')">Port</a>
+            <a href="#" onclick="changeLocation('Biblioteka')">Biblioteka</a>
         </nav>
         <div id="stats">
             Energia: <span id="energy"></span> |
@@ -26,6 +27,19 @@
     <div id="content">Witaj w grze!</div>
     <button onclick="startDialogue('neighbor')">Porozmawiaj z sąsiadem</button>
     <div id="npcDialogue"></div>
+    <!-- Przycisk uruchamiający minigrę memory -->
+    <button id="memoryBtn" onclick="startMemoryGame()" style="display:none;">Zagraj w memory</button>
+    <!-- Kontener minigry memory -->
+    <div id="memoryGame" style="display:none;">
+        <div id="cardsContainer">
+            <button class="card" data-index="0">?</button>
+            <button class="card" data-index="1">?</button>
+            <button class="card" data-index="2">?</button>
+            <button class="card" data-index="3">?</button>
+        </div>
+        <p id="gameMessage"></p>
+        <button id="memoryAgain" style="display:none;" onclick="startMemoryGame()">Zagraj ponownie</button>
+    </div>
     <!-- Sekcja z zadaniem wieloetapowym -->
     <div id="quest">
         <h2 id="questTitle"></h2>

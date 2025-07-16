@@ -25,3 +25,19 @@ header nav a { margin-right: 10px; }
     width: 100%;
     margin: 5px 0;
 }
+
+/* Prosty styl kart w minigrze memory */
+.card {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    margin: 5px;
+}
+
+#memoryGame {
+    margin-top: 20px;
+}
+
+#cardsContainer {
+    display: flex;
+}
