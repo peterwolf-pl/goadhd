@@ -1,0 +1,533 @@
+// Stan gracza
+const playerState = {
+    energy: 100,
+    mood: 50,
+    focus: 50,
+};
+
+// Ekwipunek gracza i stan pieniędzy
+let inventory = [];
+let money = 0;
+
+// Czas gry
+let currentHour = 8;
+const days = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+let currentDayIndex = 0;
+let tasksCompletedToday = 0;
+
+// Lokacje i zadania
+let currentLocation = 'Centrum miasta';
+// Podlokacje dostępne w głównych lokacjach
+const sublocations = {
+    'Centrum miasta': [
+        'Urząd miasta',
+        'Giełda',
+        'Salon samochodowy',
+        'Centrum handlowe',
+        'Pub',
+        'Klub nocny'
+    ],
+    'Wieś': [
+        'Sklep GS',
+        'Bar',
+        'Łowisko',
+        'Pole uprawne',
+        'Tartak',
+        'Staw hodowlany'
+    ]
+};
+const tasks = [
+    {name: 'Zakupy', location: 'Centrum miasta', duration: 2, energyCost: 10, moodEffect: 5, focusEffect: -5},
+    {name: 'Praca w ogrodzie', location: 'Wieś', duration: 3, energyCost: 15, moodEffect: 10, focusEffect: -10},
+    {name: 'Łowienie ryb', location: 'Port', duration: 4, energyCost: 20, moodEffect: 15, focusEffect: 5},
+    // Zadanie w bibliotece, aby przy okazji umożliwić uruchomienie minigry
+    {name: 'Wypożycz książkę', location: 'Biblioteka', duration: 1, energyCost: 5, moodEffect: 5, focusEffect: 5},
+];
+
+// ----------------- Zadanie wieloetapowe -----------------
+// Przykładowy quest składający się z kilku etapów
+const currentQuest = {
+    title: 'Zbuduj karmnik',
+    stages: [
+        { desc: 'Znajdź materiały', done: false, mood: 5, focus: -5 },
+        { desc: 'Złóż konstrukcję', done: false, mood: -5, focus: -10 },
+        { desc: 'Zawieś karmnik', done: false, mood: 10, focus: 0 },
+    ],
+    currentStage: 0,
+};
+
+// Postaci niezależne i ich relacje z graczem
+const npcs = {
+    // Przykładowy sąsiad z neutralnym nastawieniem
+    neighbor: { name: 'Sąsiad', relation: 50, mood: 'neutralny' }
+};
+
+const distractions = [
+    {desc: 'SMS od znajomego', energy: 0, focus: -5, extraHour: 1},
+    {desc: 'Scrollowanie telefonu', energy: -5, focus: -10, extraHour: 0},
+];
+
+// ----------------- Minigra Memory -----------------
+// Wzór kart używany do każdej rozgrywki
+const baseCards = ['🍏','🍌','🍏','🍌'];
+// Tablica z aktualnym ułożeniem kart
+let cardValues = [];
+// Aktualne odkryte karty
+let firstCard = null;
+let secondCard = null;
+let matchedPairs = 0;
+
+// Funkcja tasująca tablicę kart
+function shuffleCards() {
+    cardValues.sort(() => Math.random() - 0.5);
+}
+
+// Rozpoczęcie minigry - wywoływane przy przycisku "Zagraj w memory"
+function startMemoryGame() {
+    // Zresetuj stan i potasuj karty
+    cardValues = [...baseCards];
+    shuffleCards();
+    firstCard = null;
+    secondCard = null;
+    matchedPairs = 0;
+
+    const game = document.getElementById('memoryGame');
+    const msg = document.getElementById('gameMessage');
+    msg.innerText = '';
+    document.getElementById('memoryAgain').style.display = 'none';
+
+    // Przywróć wygląd wszystkich kart
+    document.querySelectorAll('#memoryGame .card').forEach((btn, idx) => {
+        btn.innerText = '?';
+        btn.disabled = false;
+        btn.dataset.index = idx;
+    });
+
+    game.style.display = 'block';
+}
+
+// Obsługa kliknięcia karty
+document.addEventListener('click', function(e) {
+    if (!e.target.classList.contains('card')) return;
+    const index = parseInt(e.target.dataset.index);
+
+    // Jeśli już dwie karty są odkryte, ignoruj kliknięcie
+    if (secondCard !== null || e.target.disabled) return;
+
+    // Odkrycie karty
+    e.target.innerText = cardValues[index];
+    e.target.disabled = true;
+
+    if (firstCard === null) {
+        firstCard = index;
+        return;
+    }
+
+    // Ustaw drugą kartę i sprawdź parę
+    secondCard = index;
+
+    if (cardValues[firstCard] === cardValues[secondCard]) {
+        // Trafiona para - pozostaw karty odkryte
+        firstCard = null;
+        secondCard = null;
+        matchedPairs++;
+
+        if (matchedPairs === 2) {
+            // Wszystkie pary znalezione
+            document.getElementById('gameMessage').innerText = 'Ukończono minigrę! +10 Fokus';
+            playerState.focus += 10; // nagroda za koncentrację
+            updateStatsDisplay();
+            document.getElementById('memoryAgain').style.display = 'block';
+        }
+    } else {
+        // Nietrafiona para - zakryj po sekundzie
+        setTimeout(() => {
+            const buttons = document.querySelectorAll('#memoryGame .card');
+            buttons[firstCard].innerText = '?';
+            buttons[firstCard].disabled = false;
+            buttons[secondCard].innerText = '?';
+            buttons[secondCard].disabled = false;
+            firstCard = null;
+            secondCard = null;
+        }, 1000);
+    }
+});
+
+// Aktualizacja widoku zadania wieloetapowego
+function updateQuestDisplay() {
+    const title = document.getElementById('questTitle');
+    const list = document.getElementById('questStages');
+    const progress = document.getElementById('questProgress');
+    const status = document.getElementById('questStatus');
+
+    title.innerText = currentQuest.title;
+    list.innerHTML = '';
+    currentQuest.stages.forEach((stage, idx) => {
+        const li = document.createElement('li');
+        li.innerText = stage.desc;
+        if (stage.done) li.style.textDecoration = 'line-through';
+        list.appendChild(li);
+    });
+
+    const doneCount = currentQuest.stages.filter(s => s.done).length;
+    progress.max = currentQuest.stages.length;
+    progress.value = doneCount;
+    status.innerText = `${doneCount}/${currentQuest.stages.length} etapy ukończone`;
+
+    document.getElementById('stageBtn').disabled = currentQuest.currentStage >= currentQuest.stages.length;
+}
+
+// Wykonanie bieżącego etapu
+function doCurrentStage() {
+    if (currentQuest.currentStage >= currentQuest.stages.length) return;
+
+    const stage = currentQuest.stages[currentQuest.currentStage];
+    stage.done = true;
+    currentQuest.currentStage++;
+
+    // Modyfikacja statystyk gracza zgodnie z etapem
+    playerState.mood += stage.mood;
+    playerState.focus += stage.focus;
+
+    if (currentQuest.currentStage >= currentQuest.stages.length) {
+        document.getElementById('questStatus').innerText = 'Zadanie ukończone!';
+    }
+
+    updateStatsDisplay();
+    updateQuestDisplay();
+}
+
+function updateStatsDisplay() {
+    document.getElementById('energy').innerText = playerState.energy;
+    document.getElementById('mood').innerText = playerState.mood;
+    document.getElementById('focus').innerText = playerState.focus;
+}
+
+// Odświeżenie widoku ekwipunku
+function updateInventoryDisplay() {
+    const div = document.getElementById('inventory');
+    if (inventory.length === 0) {
+        div.innerHTML = 'Ekwipunek pusty';
+    } else {
+        // Wyświetl nazwy przedmiotów z ilościami
+        div.innerHTML = inventory.map(i => `${i.name} x${i.qty}`).join(', ');
+    }
+}
+
+// Aktualizacja stanu pieniędzy na ekranie
+function updateMoneyDisplay() {
+    document.getElementById('money').textContent = money;
+}
+
+// Dodanie przedmiotu do ekwipunku
+function addItemToInventory(itemName, qty) {
+    // Szukamy czy przedmiot już istnieje
+    const item = inventory.find(i => i.name === itemName);
+    if (item) {
+        item.qty += qty;
+    } else {
+        inventory.push({ name: itemName, qty });
+    }
+    updateInventoryDisplay();
+}
+
+// Usunięcie przedmiotu z ekwipunku
+function removeItemFromInventory(itemName, qty) {
+    const item = inventory.find(i => i.name === itemName);
+    if (!item) return;
+    item.qty -= qty;
+    if (item.qty <= 0) {
+        // Jeśli ilosc spada do zera, usuwamy wpis
+        inventory = inventory.filter(i => i.name !== itemName);
+    }
+    updateInventoryDisplay();
+}
+
+// Aktualizacja stanu pieniędzy
+function updateMoney(amount) {
+    money += amount;
+    updateMoneyDisplay();
+}
+
+function updateTimeDisplay() {
+    document.getElementById('time').innerText = `${days[currentDayIndex]} ${currentHour}:00`;
+}
+
+function updateTaskList() {
+    const content = document.getElementById('content');
+    const locationTasks = tasks.filter(t => t.location === currentLocation);
+    if (locationTasks.length === 0) {
+        content.innerText = 'Brak zadań w tej lokacji.';
+    } else {
+        const list = document.createElement('ul');
+        locationTasks.forEach((t, idx) => {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.innerText = t.name;
+            btn.onclick = () => doTask(tasks.indexOf(t));
+            li.appendChild(btn);
+            list.appendChild(li);
+        });
+        content.innerHTML = '';
+        content.appendChild(list);
+    }
+
+    // Wyświetl przycisk minigry tylko w bibliotece
+    const memBtn = document.getElementById('memoryBtn');
+    if (currentLocation === 'Biblioteka') {
+        memBtn.style.display = 'inline-block';
+    } else {
+        memBtn.style.display = 'none';
+    }
+}
+
+function changeLocation(loc) {
+    currentLocation = loc;
+    updateTaskList();
+    // Ukryj minigrę przy zmianie lokacji
+    document.getElementById('memoryGame').style.display = 'none';
+}
+
+// Wyświetlenie podlokacji dla danej głównej lokacji
+function showSublocations(loc) {
+    currentLocation = loc;
+    const content = document.getElementById('content');
+    content.innerHTML = '';
+    const list = document.createElement('ul');
+    // Dla każdej podlokacji tworzony jest link <a>
+    sublocations[loc].forEach(sub => {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = '#';
+        link.innerText = sub;
+        link.onclick = () => enterSubLocation(sub);
+        li.appendChild(link);
+        list.appendChild(li);
+    });
+    content.appendChild(list);
+    // Przy opuszczaniu lokacji ukrywamy minigrę
+    document.getElementById('memoryGame').style.display = 'none';
+    document.getElementById('memoryBtn').style.display = 'none';
+}
+
+// Wejście do konkretnej podlokacji i obsługa specyficznych akcji
+function enterSubLocation(sub) {
+    currentLocation = sub;
+    updateTaskList();
+    const content = document.getElementById('content');
+    const info = document.createElement('p');
+    info.innerText = `Jesteś w miejscu: ${sub}`;
+    content.prepend(info);
+
+    // Specyficzne akcje dla wybranych podlokacji
+    switch (sub) {
+        case 'Łowisko': {
+            const b = document.createElement('button');
+            b.innerText = 'Łowienie ryb';
+            b.onclick = () => {
+                const qty = Math.floor(Math.random() * 5) + 1;
+                addItemToInventory('ryba', qty);
+                playerState.energy -= 5;
+                updateStatsDisplay();
+                content.innerHTML += `<p>Złowiono ${qty} ryb.</p>`;
+            };
+            content.appendChild(b);
+            break;
+        }
+        case 'Sklep GS': {
+            const b = document.createElement('button');
+            b.innerText = 'Sprzedaj ryby';
+            b.onclick = () => {
+                const item = inventory.find(i => i.name === 'ryba');
+                if (!item) {
+                    content.innerHTML += '<p>Brak ryb do sprzedania.</p>';
+                    return;
+                }
+                const price = 5;
+                const qty = item.qty;
+                removeItemFromInventory('ryba', qty);
+                updateMoney(price * qty);
+                content.innerHTML += `<p>Sprzedano ${qty} ryb za ${price * qty} monet.</p>`;
+            };
+            content.appendChild(b);
+            break;
+        }
+        case 'Centrum handlowe': {
+            const b = document.createElement('button');
+            b.innerText = 'Zakupy';
+            b.onclick = () => {
+                updateMoney(-20);
+                playerState.mood += 10;
+                updateStatsDisplay();
+                content.innerHTML += '<p>Zrobiono zakupy.</p>';
+            };
+            content.appendChild(b);
+            break;
+        }
+        case 'Pub':
+        case 'Klub nocny': {
+            const b = document.createElement('button');
+            b.innerText = 'Imprezuj';
+            b.onclick = () => {
+                playerState.mood += 15;
+                playerState.focus -= 5;
+                updateStatsDisplay();
+                content.innerHTML += '<p>Dobra zabawa!</p>';
+            };
+            content.appendChild(b);
+            break;
+        }
+    }
+
+    updateInventoryDisplay();
+    updateMoneyDisplay();
+}
+
+function showNotification(msg) {
+    const n = document.getElementById('notification');
+    n.innerText = msg;
+    n.style.display = 'block';
+    setTimeout(() => n.style.display = 'none', 3000);
+}
+
+function doTask(index) {
+    const task = tasks[index];
+    playerState.energy -= task.energyCost;
+    playerState.mood += task.moodEffect;
+    playerState.focus += task.focusEffect;
+    let duration = task.duration;
+
+    if (Math.random() < 0.2) {
+        const d = distractions[Math.floor(Math.random() * distractions.length)];
+        playerState.energy += d.energy;
+        playerState.focus += d.focus;
+        duration += d.extraHour;
+        document.getElementById('content').innerText = `Rozproszenie: ${d.desc}`;
+        showNotification('Masz nową wiadomość');
+    } else {
+        document.getElementById('content').innerText = `Zadanie ${task.name} ukończone.`;
+    }
+
+    currentHour += duration;
+    tasksCompletedToday++;
+    if (currentHour > 23) {
+        currentHour = currentHour % 24;
+        currentDayIndex = (currentDayIndex + 1) % days.length;
+        tasksCompletedToday = 0;
+    }
+
+    if (tasksCompletedToday >= 3) {
+        showNotification('Zrobione!');
+        tasksCompletedToday = 0;
+    }
+
+    updateStatsDisplay();
+    updateTimeDisplay();
+    updateTaskList();
+}
+
+function saveGame() {
+    const gameState = {
+        location: currentLocation,
+        playerState,
+        inventory,
+        money,
+        currentHour,
+        currentDayIndex,
+        npcs,
+        currentQuest,
+    };
+    localStorage.setItem('ADHDGameState', JSON.stringify(gameState));
+}
+
+function loadGame() {
+    const data = localStorage.getItem('ADHDGameState');
+    if (!data) return;
+    try {
+        const game = JSON.parse(data);
+        currentLocation = game.location;
+        playerState.energy = game.playerState.energy;
+        playerState.mood = game.playerState.mood;
+        playerState.focus = game.playerState.focus;
+        currentHour = game.currentHour;
+        currentDayIndex = game.currentDayIndex;
+        if (game.inventory) inventory = game.inventory;
+        if (typeof game.money === 'number') money = game.money;
+        if (game.npcs) Object.assign(npcs, game.npcs); // przywróć relacje NPC
+        if (game.currentQuest) Object.assign(currentQuest, game.currentQuest);
+    } catch (e) {
+        return;
+    }
+    updateStatsDisplay();
+    updateTimeDisplay();
+    updateTaskList();
+    updateQuestDisplay();
+    updateInventoryDisplay();
+    updateMoneyDisplay();
+}
+
+// ----------------- Rozmowy z NPC -----------------
+
+// Funkcja rozpoczynająca dialog z podaną postacią
+function startDialogue(npcKey) {
+    const npc = npcs[npcKey];
+    const div = document.getElementById('npcDialogue');
+    // Początkowa wypowiedź NPC
+    div.innerHTML = `<p>${npc.name}: Cześć, co słychać?</p>`;
+
+    // Przyciski odpowiedzi
+    const polite = document.createElement('button');
+    polite.innerText = '👋 Uprzejma odpowiedź';
+    polite.onclick = () => respondToNpc(npcKey, true);
+
+    const rude = document.createElement('button');
+    rude.innerText = '😠 Opryskliwa odpowiedź';
+    rude.onclick = () => respondToNpc(npcKey, false);
+
+    div.appendChild(polite);
+    div.appendChild(rude);
+}
+
+// Reakcja na odpowiedź gracza
+function respondToNpc(npcKey, polite) {
+    const npc = npcs[npcKey];
+    const div = document.getElementById('npcDialogue');
+    if (polite) {
+        npc.relation += 10;
+        playerState.mood += 5; // lepszy nastrój gracza
+        div.innerHTML = `<p>${npc.name}: Miło mi z Tobą rozmawiać!</p>`;
+    } else {
+        npc.relation -= 10;
+        playerState.mood -= 5;
+        div.innerHTML = `<p>${npc.name}: Nie podoba mi się Twój ton...</p>`;
+    }
+
+    // Aktualizacja opisu nastawienia
+    if (npc.relation > 70) {
+        npc.mood = 'przyjacielski';
+    } else if (npc.relation < 30) {
+        npc.mood = 'wrogi';
+    } else {
+        npc.mood = 'neutralny';
+    }
+
+    div.innerHTML += `<p>Poziom relacji: ${npc.relation} (${npc.mood})</p>`;
+
+    const again = document.createElement('button');
+    again.innerText = 'Zakończ rozmowę';
+    again.onclick = () => {
+        div.innerHTML = '';
+    };
+    div.appendChild(again);
+
+    updateStatsDisplay();
+}
+
+window.onload = () => {
+    updateStatsDisplay();
+    updateTimeDisplay();
+    updateTaskList();
+    updateQuestDisplay();
+    updateInventoryDisplay();
+    updateMoneyDisplay();
+};
