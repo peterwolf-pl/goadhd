@@ -11,3 +11,7 @@ header nav a { margin-right: 10px; }
     border-radius: 5px;
     display: none;
 }
+
+#npcDialogue {
+    margin-top: 10px;
+}

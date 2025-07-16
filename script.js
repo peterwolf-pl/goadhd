@@ -19,6 +19,12 @@ const tasks = [
     {name: 'Łowienie ryb', location: 'Port', duration: 4, energyCost: 20, moodEffect: 15, focusEffect: 5},
 ];
 
+// Postaci niezależne i ich relacje z graczem
+const npcs = {
+    // Przykładowy sąsiad z neutralnym nastawieniem
+    neighbor: { name: 'Sąsiad', relation: 50, mood: 'neutralny' }
+};
+
 const distractions = [
     {desc: 'SMS od znajomego', energy: 0, focus: -5, extraHour: 1},
     {desc: 'Scrollowanie telefonu', energy: -5, focus: -10, extraHour: 0},
@@ -108,6 +114,7 @@ function saveGame() {
         playerState,
         currentHour,
         currentDayIndex,
+        npcs,
     };
     localStorage.setItem('ADHDGameState', JSON.stringify(gameState));
 }
@@ -123,12 +130,70 @@ function loadGame() {
         playerState.focus = game.playerState.focus;
         currentHour = game.currentHour;
         currentDayIndex = game.currentDayIndex;
+        if (game.npcs) Object.assign(npcs, game.npcs); // przywróć relacje NPC
     } catch (e) {
         return;
     }
     updateStatsDisplay();
     updateTimeDisplay();
     updateTaskList();
+}
+
+// ----------------- Rozmowy z NPC -----------------
+
+// Funkcja rozpoczynająca dialog z podaną postacią
+function startDialogue(npcKey) {
+    const npc = npcs[npcKey];
+    const div = document.getElementById('npcDialogue');
+    // Początkowa wypowiedź NPC
+    div.innerHTML = `<p>${npc.name}: Cześć, co słychać?</p>`;
+
+    // Przyciski odpowiedzi
+    const polite = document.createElement('button');
+    polite.innerText = '👋 Uprzejma odpowiedź';
+    polite.onclick = () => respondToNpc(npcKey, true);
+
+    const rude = document.createElement('button');
+    rude.innerText = '😠 Opryskliwa odpowiedź';
+    rude.onclick = () => respondToNpc(npcKey, false);
+
+    div.appendChild(polite);
+    div.appendChild(rude);
+}
+
+// Reakcja na odpowiedź gracza
+function respondToNpc(npcKey, polite) {
+    const npc = npcs[npcKey];
+    const div = document.getElementById('npcDialogue');
+    if (polite) {
+        npc.relation += 10;
+        playerState.mood += 5; // lepszy nastrój gracza
+        div.innerHTML = `<p>${npc.name}: Miło mi z Tobą rozmawiać!</p>`;
+    } else {
+        npc.relation -= 10;
+        playerState.mood -= 5;
+        div.innerHTML = `<p>${npc.name}: Nie podoba mi się Twój ton...</p>`;
+    }
+
+    // Aktualizacja opisu nastawienia
+    if (npc.relation > 70) {
+        npc.mood = 'przyjacielski';
+    } else if (npc.relation < 30) {
+        npc.mood = 'wrogi';
+    } else {
+        npc.mood = 'neutralny';
+    }
+
+    div.innerHTML += `<p>Poziom relacji: ${npc.relation} (${npc.mood})</p>`;
+
+    const again = document.createElement('button');
+    again.innerText = 'Zakończ rozmowę';
+    again.onclick = () => {
+        div.innerHTML = '';
+    };
+    div.appendChild(again);
+
+    updateStatsDisplay();
 }
 
 window.onload = () => {
