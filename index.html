@@ -10,21 +10,25 @@
     <header>
         <h1>Gra ADHD</h1>
         <nav>
-            <a href="#" onclick="changeLocation('Centrum miasta')">Centrum miasta</a>
-            <a href="#" onclick="changeLocation('Wieś')">Wieś</a>
+            <!-- Linki głównych lokacji, "Centrum miasta" i "Wieś" pokazują podlokacje -->
+            <a href="#" onclick="showSublocations('Centrum miasta')">Centrum miasta</a>
+            <a href="#" onclick="showSublocations('Wieś')">Wieś</a>
             <a href="#" onclick="changeLocation('Port')">Port</a>
             <a href="#" onclick="changeLocation('Biblioteka')">Biblioteka</a>
         </nav>
         <div id="stats">
             Energia: <span id="energy"></span> |
             Nastrój: <span id="mood"></span> |
-            Fokus: <span id="focus"></span>
+            Fokus: <span id="focus"></span> |
+            Pieniądze: <span id="money"></span>
         </div>
         <div id="time"></div>
         <button onclick="saveGame()">Zapisz grę</button>
         <button onclick="loadGame()">Wczytaj grę</button>
     </header>
     <div id="content">Witaj w grze!</div>
+    <!-- Sekcja ekwipunku gracza -->
+    <div id="inventory"></div>
     <button onclick="startDialogue('neighbor')">Porozmawiaj z sąsiadem</button>
     <div id="npcDialogue"></div>
     <!-- Przycisk uruchamiający minigrę memory -->

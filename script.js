@@ -5,6 +5,10 @@ const playerState = {
     focus: 50,
 };
 
+// Ekwipunek gracza i stan pieniędzy
+let inventory = [];
+let money = 0;
+
 // Czas gry
 let currentHour = 8;
 const days = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
@@ -13,6 +17,25 @@ let tasksCompletedToday = 0;
 
 // Lokacje i zadania
 let currentLocation = 'Centrum miasta';
+// Podlokacje dostępne w głównych lokacjach
+const sublocations = {
+    'Centrum miasta': [
+        'Urząd miasta',
+        'Giełda',
+        'Salon samochodowy',
+        'Centrum handlowe',
+        'Pub',
+        'Klub nocny'
+    ],
+    'Wieś': [
+        'Sklep GS',
+        'Bar',
+        'Łowisko',
+        'Pole uprawne',
+        'Tartak',
+        'Staw hodowlany'
+    ]
+};
 const tasks = [
     {name: 'Zakupy', location: 'Centrum miasta', duration: 2, energyCost: 10, moodEffect: 5, focusEffect: -5},
     {name: 'Praca w ogrodzie', location: 'Wieś', duration: 3, energyCost: 15, moodEffect: 10, focusEffect: -10},
@@ -180,6 +203,52 @@ function updateStatsDisplay() {
     document.getElementById('focus').innerText = playerState.focus;
 }
 
+// Odświeżenie widoku ekwipunku
+function updateInventoryDisplay() {
+    const div = document.getElementById('inventory');
+    if (inventory.length === 0) {
+        div.innerHTML = 'Ekwipunek pusty';
+    } else {
+        // Wyświetl nazwy przedmiotów z ilościami
+        div.innerHTML = inventory.map(i => `${i.name} x${i.qty}`).join(', ');
+    }
+}
+
+// Aktualizacja stanu pieniędzy na ekranie
+function updateMoneyDisplay() {
+    document.getElementById('money').textContent = money;
+}
+
+// Dodanie przedmiotu do ekwipunku
+function addItemToInventory(itemName, qty) {
+    // Szukamy czy przedmiot już istnieje
+    const item = inventory.find(i => i.name === itemName);
+    if (item) {
+        item.qty += qty;
+    } else {
+        inventory.push({ name: itemName, qty });
+    }
+    updateInventoryDisplay();
+}
+
+// Usunięcie przedmiotu z ekwipunku
+function removeItemFromInventory(itemName, qty) {
+    const item = inventory.find(i => i.name === itemName);
+    if (!item) return;
+    item.qty -= qty;
+    if (item.qty <= 0) {
+        // Jeśli ilosc spada do zera, usuwamy wpis
+        inventory = inventory.filter(i => i.name !== itemName);
+    }
+    updateInventoryDisplay();
+}
+
+// Aktualizacja stanu pieniędzy
+function updateMoney(amount) {
+    money += amount;
+    updateMoneyDisplay();
+}
+
 function updateTimeDisplay() {
     document.getElementById('time').innerText = `${days[currentDayIndex]} ${currentHour}:00`;
 }
@@ -217,6 +286,101 @@ function changeLocation(loc) {
     updateTaskList();
     // Ukryj minigrę przy zmianie lokacji
     document.getElementById('memoryGame').style.display = 'none';
+}
+
+// Wyświetlenie podlokacji dla danej głównej lokacji
+function showSublocations(loc) {
+    currentLocation = loc;
+    const content = document.getElementById('content');
+    content.innerHTML = '';
+    const list = document.createElement('ul');
+    // Dla każdej podlokacji tworzony jest link <a>
+    sublocations[loc].forEach(sub => {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = '#';
+        link.innerText = sub;
+        link.onclick = () => enterSubLocation(sub);
+        li.appendChild(link);
+        list.appendChild(li);
+    });
+    content.appendChild(list);
+    // Przy opuszczaniu lokacji ukrywamy minigrę
+    document.getElementById('memoryGame').style.display = 'none';
+    document.getElementById('memoryBtn').style.display = 'none';
+}
+
+// Wejście do konkretnej podlokacji i obsługa specyficznych akcji
+function enterSubLocation(sub) {
+    currentLocation = sub;
+    updateTaskList();
+    const content = document.getElementById('content');
+    const info = document.createElement('p');
+    info.innerText = `Jesteś w miejscu: ${sub}`;
+    content.prepend(info);
+
+    // Specyficzne akcje dla wybranych podlokacji
+    switch (sub) {
+        case 'Łowisko': {
+            const b = document.createElement('button');
+            b.innerText = 'Łowienie ryb';
+            b.onclick = () => {
+                const qty = Math.floor(Math.random() * 5) + 1;
+                addItemToInventory('ryba', qty);
+                playerState.energy -= 5;
+                updateStatsDisplay();
+                content.innerHTML += `<p>Złowiono ${qty} ryb.</p>`;
+            };
+            content.appendChild(b);
+            break;
+        }
+        case 'Sklep GS': {
+            const b = document.createElement('button');
+            b.innerText = 'Sprzedaj ryby';
+            b.onclick = () => {
+                const item = inventory.find(i => i.name === 'ryba');
+                if (!item) {
+                    content.innerHTML += '<p>Brak ryb do sprzedania.</p>';
+                    return;
+                }
+                const price = 5;
+                const qty = item.qty;
+                removeItemFromInventory('ryba', qty);
+                updateMoney(price * qty);
+                content.innerHTML += `<p>Sprzedano ${qty} ryb za ${price * qty} monet.</p>`;
+            };
+            content.appendChild(b);
+            break;
+        }
+        case 'Centrum handlowe': {
+            const b = document.createElement('button');
+            b.innerText = 'Zakupy';
+            b.onclick = () => {
+                updateMoney(-20);
+                playerState.mood += 10;
+                updateStatsDisplay();
+                content.innerHTML += '<p>Zrobiono zakupy.</p>';
+            };
+            content.appendChild(b);
+            break;
+        }
+        case 'Pub':
+        case 'Klub nocny': {
+            const b = document.createElement('button');
+            b.innerText = 'Imprezuj';
+            b.onclick = () => {
+                playerState.mood += 15;
+                playerState.focus -= 5;
+                updateStatsDisplay();
+                content.innerHTML += '<p>Dobra zabawa!</p>';
+            };
+            content.appendChild(b);
+            break;
+        }
+    }
+
+    updateInventoryDisplay();
+    updateMoneyDisplay();
 }
 
 function showNotification(msg) {
@@ -266,6 +430,8 @@ function saveGame() {
     const gameState = {
         location: currentLocation,
         playerState,
+        inventory,
+        money,
         currentHour,
         currentDayIndex,
         npcs,
@@ -285,6 +451,8 @@ function loadGame() {
         playerState.focus = game.playerState.focus;
         currentHour = game.currentHour;
         currentDayIndex = game.currentDayIndex;
+        if (game.inventory) inventory = game.inventory;
+        if (typeof game.money === 'number') money = game.money;
         if (game.npcs) Object.assign(npcs, game.npcs); // przywróć relacje NPC
         if (game.currentQuest) Object.assign(currentQuest, game.currentQuest);
     } catch (e) {
@@ -294,6 +462,8 @@ function loadGame() {
     updateTimeDisplay();
     updateTaskList();
     updateQuestDisplay();
+    updateInventoryDisplay();
+    updateMoneyDisplay();
 }
 
 // ----------------- Rozmowy z NPC -----------------
@@ -358,4 +528,6 @@ window.onload = () => {
     updateTimeDisplay();
     updateTaskList();
     updateQuestDisplay();
+    updateInventoryDisplay();
+    updateMoneyDisplay();
 };
