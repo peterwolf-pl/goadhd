@@ -19,6 +19,18 @@ const tasks = [
     {name: 'Łowienie ryb', location: 'Port', duration: 4, energyCost: 20, moodEffect: 15, focusEffect: 5},
 ];
 
+// ----------------- Zadanie wieloetapowe -----------------
+// Przykładowy quest składający się z kilku etapów
+const currentQuest = {
+    title: 'Zbuduj karmnik',
+    stages: [
+        { desc: 'Znajdź materiały', done: false, mood: 5, focus: -5 },
+        { desc: 'Złóż konstrukcję', done: false, mood: -5, focus: -10 },
+        { desc: 'Zawieś karmnik', done: false, mood: 10, focus: 0 },
+    ],
+    currentStage: 0,
+};
+
 // Postaci niezależne i ich relacje z graczem
 const npcs = {
     // Przykładowy sąsiad z neutralnym nastawieniem
@@ -29,6 +41,50 @@ const distractions = [
     {desc: 'SMS od znajomego', energy: 0, focus: -5, extraHour: 1},
     {desc: 'Scrollowanie telefonu', energy: -5, focus: -10, extraHour: 0},
 ];
+
+// Aktualizacja widoku zadania wieloetapowego
+function updateQuestDisplay() {
+    const title = document.getElementById('questTitle');
+    const list = document.getElementById('questStages');
+    const progress = document.getElementById('questProgress');
+    const status = document.getElementById('questStatus');
+
+    title.innerText = currentQuest.title;
+    list.innerHTML = '';
+    currentQuest.stages.forEach((stage, idx) => {
+        const li = document.createElement('li');
+        li.innerText = stage.desc;
+        if (stage.done) li.style.textDecoration = 'line-through';
+        list.appendChild(li);
+    });
+
+    const doneCount = currentQuest.stages.filter(s => s.done).length;
+    progress.max = currentQuest.stages.length;
+    progress.value = doneCount;
+    status.innerText = `${doneCount}/${currentQuest.stages.length} etapy ukończone`;
+
+    document.getElementById('stageBtn').disabled = currentQuest.currentStage >= currentQuest.stages.length;
+}
+
+// Wykonanie bieżącego etapu
+function doCurrentStage() {
+    if (currentQuest.currentStage >= currentQuest.stages.length) return;
+
+    const stage = currentQuest.stages[currentQuest.currentStage];
+    stage.done = true;
+    currentQuest.currentStage++;
+
+    // Modyfikacja statystyk gracza zgodnie z etapem
+    playerState.mood += stage.mood;
+    playerState.focus += stage.focus;
+
+    if (currentQuest.currentStage >= currentQuest.stages.length) {
+        document.getElementById('questStatus').innerText = 'Zadanie ukończone!';
+    }
+
+    updateStatsDisplay();
+    updateQuestDisplay();
+}
 
 function updateStatsDisplay() {
     document.getElementById('energy').innerText = playerState.energy;
@@ -115,6 +171,7 @@ function saveGame() {
         currentHour,
         currentDayIndex,
         npcs,
+        currentQuest,
     };
     localStorage.setItem('ADHDGameState', JSON.stringify(gameState));
 }
@@ -131,12 +188,14 @@ function loadGame() {
         currentHour = game.currentHour;
         currentDayIndex = game.currentDayIndex;
         if (game.npcs) Object.assign(npcs, game.npcs); // przywróć relacje NPC
+        if (game.currentQuest) Object.assign(currentQuest, game.currentQuest);
     } catch (e) {
         return;
     }
     updateStatsDisplay();
     updateTimeDisplay();
     updateTaskList();
+    updateQuestDisplay();
 }
 
 // ----------------- Rozmowy z NPC -----------------
@@ -200,4 +259,5 @@ window.onload = () => {
     updateStatsDisplay();
     updateTimeDisplay();
     updateTaskList();
+    updateQuestDisplay();
 };

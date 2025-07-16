@@ -15,3 +15,13 @@ header nav a { margin-right: 10px; }
 #npcDialogue {
     margin-top: 10px;
 }
+
+/* Prosty wygląd sekcji zadania */
+#quest {
+    margin-top: 20px;
+}
+
+#quest progress {
+    width: 100%;
+    margin: 5px 0;
+}

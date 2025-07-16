@@ -26,6 +26,14 @@
     <div id="content">Witaj w grze!</div>
     <button onclick="startDialogue('neighbor')">Porozmawiaj z sąsiadem</button>
     <div id="npcDialogue"></div>
+    <!-- Sekcja z zadaniem wieloetapowym -->
+    <div id="quest">
+        <h2 id="questTitle"></h2>
+        <ul id="questStages"></ul>
+        <progress id="questProgress" value="0" max="0"></progress>
+        <div id="questStatus"></div>
+        <button id="stageBtn" onclick="doCurrentStage()">Wykonaj bieżący etap</button>
+    </div>
     <div id="notification" style="display:none;"></div>
     <script src="script.js"></script>
 </body>
